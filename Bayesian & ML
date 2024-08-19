@@ -1,0 +1,1006 @@
+# 1. isntall packages
+
+library(tidyverse)
+library(brms)
+head(data)
+
+# 2. Data Preparation
+# Load the dataset
+file_path <-
+data <- read_csv("knn_imputed_dataset2g.csv")
+
+# Prepare the data
+data <- data %>%
+  mutate(
+    Age_visit_c = Age_visit - mean(Age_visit, na.rm = TRUE),
+    Visit_c = Visit - mean(Visit, na.rm = TRUE),
+    Gender = as.factor(Gender)
+  )
+
+# Display the first few rows of the prepared data
+head(data)
+
+# 3. Model Specification and Fitting
+
+library(brms)
+
+# Define the Bayesian hierarchical model
+# Here we model FEV1 as a function of Visit, Age, and Gender with random intercepts and slopes for each patient
+model <- brm(
+  FEV1 ~ Visit_c + Age_visit_c + Gender + (Visit_c | ID),
+  data = data,
+  family = gaussian(),
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"),
+    set_prior("normal(0, 10)", class = "Intercept"),
+    set_prior("cauchy(0, 2)", class = "sd")
+  ),
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  cores = 2
+)
+
+# Summarise the model
+summary(model)
+
+
+# 4. Posterior Analysis
+# Plot the trace and posterior distributions
+plot(model)
+
+# Posterior predictive checks
+pp_check(model)
+
+# Get detailed summary of the posterior distributions
+posterior_summary <- summary(model)$fixed
+print(posterior_summary)
+
+
+# FEV1 again wit ERT
+
+
+
+# Prepare the data
+data <- data %>%
+  mutate(
+    Age_visit_c = Age_visit - mean(Age_visit, na.rm = TRUE),
+    Visit_c = Visit - mean(Visit, na.rm = TRUE),
+    Gender = as.factor(Gender),
+    ERT = as.factor(ERT)
+  )
+
+# Model 1: FEV1
+m1 <- brm(
+  FEV1 ~ Visit_c + Age_visit_c + Gender + ERT + (Visit_c | ID),
+  data = data,
+  family = gaussian(),
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"),
+    set_prior("normal(0, 10)", class = "Intercept"),
+    set_prior("cauchy(0, 2)", class = "sd")
+  ),
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  cores = 2
+)
+
+# Summarize model 1
+summary(m1)
+posterior_summary1 <- summary(m1)$fixed
+print(posterior_summary1)
+
+# Plot model 1
+plot(m1)
+pp_check(m1)
+
+# Model 2: FVC
+m2 <- brm(
+  FVC ~ Visit_c + Age_visit_c + Gender + ERT + (Visit_c | ID),
+  data = data,
+  family = gaussian(),
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"),
+    set_prior("normal(0, 10)", class = "Intercept"),
+    set_prior("cauchy(0, 2)", class = "sd")
+  ),
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  cores = 2
+)
+
+# Summarize model 2
+summary(m2)
+posterior_summary2 <- summary(m2)$fixed
+print(posterior_summary2)
+
+# Plot model 2
+plot(m2)
+pp_check(m2)
+
+# Model 3: 6MWT
+m3 <- brm(
+  dist6MWT ~ Visit_c + Age_visit_c + Gender + ERT + (Visit_c | ID),
+  data = data,
+  family = gaussian(),
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"),
+    set_prior("normal(0, 10)", class = "Intercept"),
+    set_prior("cauchy(0, 2)", class = "sd")
+  ),
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  cores = 2
+)
+
+# Summarize model 3
+summary(m3)
+posterior_summary3 <- summary(m3)$fixed
+print(posterior_summary3)
+
+# Plot model 3
+plot(m3)
+pp_check(m3)
+
+# Model 4: uKS
+m4 <- brm(
+  uKS ~ Visit_c + Age_visit_c + Gender + ERT + (Visit_c | ID),
+  data = data,
+  family = gaussian(),
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"),
+    set_prior("normal(0, 10)", class = "Intercept"),
+    set_prior("cauchy(0, 2)", class = "sd")
+  ),
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  cores = 2
+)
+
+# Summarise model 4
+summary(m4)
+posterior_summary4 <- summary(m4)$fixed
+print(posterior_summary4)
+
+# Plot model 4
+plot(m4)
+pp_check(m4)
+
+------------
+#ML models
+  #XGBoost
+
+#Load the Required Packages
+library("xgboost")
+library("caret")
+library("dplyr")
+library("readr")
+library("fastDummies")
+
+# Load the data
+data <- read_csv("knn_imputed_dataset2g.csv")
+
+# Inspect the structure of the data
+str(data)
+summary(data)
+# Convert categorical variables to factors
+data$Gender <- as.factor(data$Gender)
+
+# One-hot encode the categorical variables
+data <- fastDummies::dummy_cols(data, select_columns = "Gender", remove_first_dummy = TRUE)
+
+# Drop the original Gender column after encoding
+data <- data %>% select(-Gender)
+
+# Function to train and evaluate XGBoost model for FEV1
+train_xgboost_fev1 <- function(data) {
+  set.seed(123)
+  train_index <- createDataPartition(data$FEV1, p = 0.8, list = FALSE)
+  train_data <- data[train_index, ]
+  test_data <- data[-train_index, ]
+  
+  train_matrix <- as.matrix(train_data %>% select(-FEV1))
+  train_labels <- train_data$FEV1
+  test_matrix <- as.matrix(test_data %>% select(-FEV1))
+  test_labels <- test_data$FEV1
+  
+  params <- list(
+    objective = "reg:squarederror",  # For regression tasks
+    eta = 0.1,                       # Learning rate
+    max_depth = 6,                   # Maximum depth of the trees
+    subsample = 0.8,                 # Subsample ratio of the training instances
+    colsample_bytree = 0.8,          # Subsample ratio of columns when constructing each tree
+    eval_metric = "rmse"             # Evaluation metric
+  )
+  
+  dtrain <- xgb.DMatrix(data = train_matrix, label = train_labels)
+  dtest <- xgb.DMatrix(data = test_matrix, label = test_labels)
+  
+  xgb_model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = 100,                    # Number of boosting rounds
+    watchlist = list(train = dtrain, test = dtest),
+    print_every_n = 10,               # Print the evaluation metric every 10 rounds
+    early_stopping_rounds = 10        # Stop training if the test metric does not improve for 10 rounds
+  )
+  
+  preds <- predict(xgb_model, newdata = dtest)
+  rmse <- sqrt(mean((preds - test_labels)^2))
+  mae <- mean(abs(preds - test_labels))
+  r_squared <- cor(preds, test_labels)^2
+  cat("Metrics for FEV1 on test set:\n")
+  cat("RMSE:", rmse, "\n")
+  cat("MAE:", mae, "\n")
+  cat("R-squared:", r_squared, "\n")
+  
+  importance_matrix <- xgb.importance(model = xgb_model)
+  xgb.plot.importance(importance_matrix)
+}
+
+# Apply the function to FEV1
+train_xgboost_fev1(data)
+
+# FVC
+# Generalized function to train and evaluate XGBoost model for FVC
+train_xgboost_fvc <- function(data) {
+  set.seed(123)
+  train_index <- createDataPartition(data$FVC, p = 0.8, list = FALSE)
+  train_data <- data[train_index, ]
+  test_data <- data[-train_index, ]
+  
+  train_matrix <- as.matrix(train_data %>% select(-FVC))
+  train_labels <- train_data$FVC
+  test_matrix <- as.matrix(test_data %>% select(-FVC))
+  test_labels <- test_data$FVC
+  
+  params <- list(
+    objective = "reg:squarederror",  # For regression tasks
+    eta = 0.1,                       # Learning rate
+    max_depth = 6,                   # Maximum depth of the trees
+    subsample = 0.8,                 # Subsample ratio of the training instances
+    colsample_bytree = 0.8,          # Subsample ratio of columns when constructing each tree
+    eval_metric = "rmse"             # Evaluation metric
+  )
+  
+  dtrain <- xgb.DMatrix(data = train_matrix, label = train_labels)
+  dtest <- xgb.DMatrix(data = test_matrix, label = test_labels)
+  
+  xgb_model2 <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = 100,                    # Number of boosting rounds
+    watchlist = list(train = dtrain, test = dtest),
+    print_every_n = 10,               # Print the evaluation metric every 10 rounds
+    early_stopping_rounds = 10        # Stop training if the test metric does not improve for 10 rounds
+  )
+  
+  preds2 <- predict(xgb_model2, newdata = dtest)
+  rmse2 <- sqrt(mean((preds2 - test_labels)^2))
+  mae2 <- mean(abs(preds2 - test_labels))
+  r_squared2 <- cor(preds2, test_labels)^2
+  cat("Metrics for FVC on test set:\n")
+  cat("RMSE:", rmse2, "\n")
+  cat("MAE:", mae2, "\n")
+  cat("R-squared:", r_squared2, "\n")
+  
+  importance_matrix2 <- xgb.importance(model = xgb_model2)
+  xgb.plot.importance(importance_matrix2)
+}
+
+# Apply the function to FVC
+train_xgboost_fvc(data)
+
+# Generalised function to train and evaluate XGBoost model
+train_xgboost <- function(data, target_var) {
+  set.seed(123)
+  train_index <- createDataPartition(data[[target_var]], p = 0.8, list = FALSE)
+  train_data <- data[train_index, ]
+  test_data <- data[-train_index, ]
+  
+  train_matrix <- as.matrix(train_data %>% select(-all_of(target_var)))
+  train_labels <- train_data[[target_var]]
+  test_matrix <- as.matrix(test_data %>% select(-all_of(target_var)))
+  test_labels <- test_data[[target_var]]
+  
+  params <- list(
+    objective = "reg:squarederror",
+    eta = 0.1,
+    max_depth = 6,
+    subsample = 0.8,
+    colsample_bytree = 0.8,
+    eval_metric = "rmse"
+  )
+  
+  dtrain <- xgb.DMatrix(data = train_matrix, label = train_labels)
+  dtest <- xgb.DMatrix(data = test_matrix, label = test_labels)
+  
+  xgb_model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = 100,
+    watchlist = list(train = dtrain, test = dtest),
+    print_every_n = 10,
+    early_stopping_rounds = 10
+  )
+  
+  preds <- predict(xgb_model, newdata = dtest)
+  rmse <- sqrt(mean((preds - test_labels)^2))
+  mae <- mean(abs(preds - test_labels))
+  r_squared <- cor(preds, test_labels)^2
+  cat("Metrics for", target_var, "on test set:\n")
+  cat("RMSE:", rmse, "\n")
+  cat("MAE:", mae, "\n")
+  cat("R-squared:", r_squared, "\n")
+  
+  importance_matrix <- xgb.importance(model = xgb_model)
+  xgb.plot.importance(importance_matrix)
+}
+
+# Apply the function to other metrics
+train_xgboost(data, "dist6MWT")
+train_xgboost(data, "uKS")
+
+#Revised XGBoost Code taking account fev<->fvc related
+# Generalized function to train and evaluate XGBoost model, excluding interdependent variables
+train_xgboost <- function(data, target_var, exclude_var) {
+  set.seed(123)
+  train_index <- createDataPartition(data[[target_var]], p = 0.8, list = FALSE)
+  train_data <- data[train_index, ]
+  test_data <- data[-train_index, ]
+  
+  train_matrix <- as.matrix(train_data %>% select(-all_of(c(target_var, exclude_var))))
+  train_labels <- train_data[[target_var]]
+  test_matrix <- as.matrix(test_data %>% select(-all_of(c(target_var, exclude_var))))
+  test_labels <- test_data[[target_var]]
+  
+  params <- list(
+    objective = "reg:squarederror",
+    eta = 0.1,
+    max_depth = 6,
+    subsample = 0.8,
+    colsample_bytree = 0.8,
+    eval_metric = "rmse"
+  )
+  
+  dtrain <- xgb.DMatrix(data = train_matrix, label = train_labels)
+  dtest <- xgb.DMatrix(data = test_matrix, label = test_labels)
+  
+  xgb_model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = 100,
+    watchlist = list(train = dtrain, test = dtest),
+    print_every_n = 10,
+    early_stopping_rounds = 10
+  )
+  
+  preds <- predict(xgb_model, newdata = dtest)
+  rmse <- sqrt(mean((preds - test_labels)^2))
+  mae <- mean(abs(preds - test_labels))
+  r_squared <- cor(preds, test_labels)^2
+  cat("Metrics for", target_var, "on test set:\n")
+  cat("RMSE:", rmse, "\n")
+  cat("MAE:", mae, "\n")
+  cat("R-squared:", r_squared, "\n")
+  
+  importance_matrix <- xgb.importance(model = xgb_model)
+  xgb.plot.importance(importance_matrix)
+}
+
+# Apply the function to FVC, excluding FEV1 as a predictor
+train_xgboost(data, "FVC", "FEV1")
+
+# Apply the function to FEV1, excluding FVC as a predictor
+train_xgboost(data, "FEV1", "FVC")
+#//
+
+
+
+# Load the data
+data <- read_csv("knn_imputed_dataset2g.csv")
+
+# Convert categorical variables to factors
+data$Gender <- as.factor(data$Gender)
+
+# One-hot encode the categorical variables
+data <- dummy_cols(data, select_columns = "Gender", remove_selected_columns = TRUE)
+
+# Generalized function to train and evaluate XGBoost model, excluding interdependent variables
+train_xgboost <- function(data, target_var, exclude_var, plot_title) {
+  set.seed(123)
+  train_index <- createDataPartition(data[[target_var]], p = 0.8, list = FALSE)
+  train_data <- data[train_index, ]
+  test_data <- data[-train_index, ]
+  
+  train_matrix <- as.matrix(train_data %>% select(-all_of(c(target_var, exclude_var))))
+  train_labels <- train_data[[target_var]]
+  test_matrix <- as.matrix(test_data %>% select(-all_of(c(target_var, exclude_var))))
+  test_labels <- test_data[[target_var]]
+  
+  params <- list(
+    objective = "reg:squarederror",
+    eta = 0.1,
+    max_depth = 6,
+    subsample = 0.8,
+    colsample_bytree = 0.8,
+    eval_metric = "rmse"
+  )
+  
+  dtrain <- xgb.DMatrix(data = train_matrix, label = train_labels)
+  dtest <- xgb.DMatrix(data = test_matrix, label = test_labels)
+  
+  xgb_model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = 100,
+    watchlist = list(train = dtrain, test = dtest),
+    print_every_n = 10,
+    early_stopping_rounds = 10
+  )
+  
+  preds <- predict(xgb_model, newdata = dtest)
+  rmse <- sqrt(mean((preds - test_labels)^2))
+  mae <- mean(abs(preds - test_labels))
+  r_squared <- cor(preds, test_labels)^2
+  cat("Metrics for", target_var, "on test set:\n")
+  cat("RMSE:", rmse, "\n")
+  cat("MAE:", mae, "\n")
+  cat("R-squared:", r_squared, "\n")
+  
+  importance_matrix <- xgb.importance(model = xgb_model)
+  xgb.plot.importance(importance_matrix, main = plot_title)
+}
+
+# Apply the function to FEV1, excluding FVC as a predictor
+train_xgboost(data, "FEV1", "FVC", "Feature Importance for FEV1")
+
+# Apply the function to FVC, excluding FEV1 as a predictor
+train_xgboost(data, "FVC", "FEV1", "Feature Importance for FVC")
+
+# Apply the function to dist6MWT
+train_xgboost(data, "dist6MWT", "", "Feature Importance for dist6MWT")
+
+# Apply the function to uKS
+train_xgboost(data, "uKS", "", "Feature Importance for uKS")
+
+
+#//
+
+# Load required libraries
+
+
+# Convert categorical variables to factors
+data$Gender <- as.factor(data$Gender)
+
+# One-hot encode the categorical variables
+data <- dummy_cols(data, select_columns = "Gender", remove_selected_columns = TRUE)
+
+# Generalized function to train and evaluate XGBoost model, excluding interdependent variables
+train_xgboost <- function(data, target_var, exclude_var = NULL, plot_title) {
+  set.seed(123)
+  train_index <- createDataPartition(data[[target_var]], p = 0.8, list = FALSE)
+  train_data <- data[train_index, ]
+  test_data <- data[-train_index, ]
+  
+  if (is.null(exclude_var)) {
+    train_matrix <- as.matrix(train_data %>% select(-all_of(target_var)))
+    test_matrix <- as.matrix(test_data %>% select(-all_of(target_var)))
+  } else {
+    train_matrix <- as.matrix(train_data %>% select(-all_of(c(target_var, exclude_var))))
+    test_matrix <- as.matrix(test_data %>% select(-all_of(c(target_var, exclude_var))))
+  }
+  
+  train_labels <- train_data[[target_var]]
+  test_labels <- test_data[[target_var]]
+  
+  params <- list(
+    objective = "reg:squarederror",
+    eta = 0.1,
+    max_depth = 6,
+    subsample = 0.8,
+    colsample_bytree = 0.8,
+    eval_metric = "rmse"
+  )
+  
+  dtrain <- xgb.DMatrix(data = train_matrix, label = train_labels)
+  dtest <- xgb.DMatrix(data = test_matrix, label = test_labels)
+  
+  xgb_model <- xgb.train(
+    params = params,
+    data = dtrain,
+    nrounds = 100,
+    watchlist = list(train = dtrain, test = dtest),
+    print_every_n = 10,
+    early_stopping_rounds = 10
+  )
+  
+  preds <- predict(xgb_model, newdata = dtest)
+  rmse <- sqrt(mean((preds - test_labels)^2))
+  mae <- mean(abs(preds - test_labels))
+  r_squared <- cor(preds, test_labels)^2
+  cat("Metrics for", target_var, "on test set:\n")
+  cat("RMSE:", rmse, "\n")
+  cat("MAE:", mae, "\n")
+  cat("R-squared:", r_squared, "\n")
+  
+  importance_matrix <- xgb.importance(model = xgb_model)
+  xgb.plot.importance(importance_matrix, main = plot_title)
+}
+
+# Apply the function to FEV1, excluding FVC as a predictor
+train_xgboost(data, "FEV1", "FVC", "Feature Importance for FEV1")
+
+# Apply the function to FVC, excluding FEV1 as a predictor
+train_xgboost(data, "FVC", "FEV1", "Feature Importance for FVC")
+
+# Apply the function to dist6MWT
+train_xgboost(data, "dist6MWT", NULL, "Feature Importance for dist6MWT")
+
+# Apply the function to uKS
+train_xgboost(data, "uKS", NULL, "Feature Importance for uKS")
+
+
+
+
+#Bayesian with further prio information 
+library("brms")
+head(data)
+library(tidyverse)
+
+
+# Convert categorical variables to factors
+data$Gender <- as.factor(data$Gender)
+data$ERT <- as.factor(data$ERT)
+
+# Create centered variables for Visit and Age_visit
+data <- data %>%
+  mutate(Visit_c = scale(Visit, center = TRUE, scale = FALSE),
+         Age_visit_c = scale(Age_visit, center = TRUE, scale = FALSE))
+
+# Define prior distributions based on findings from previous studies
+priors <- c(
+  set_prior("normal(1.2, 0.9)", class = "Intercept"),
+  set_prior("normal(0.018, 0.05)", class = "b", coef = "Visit_c"),
+  set_prior("normal(0.01, 0.05)", class = "b", coef = "Age_visit_c"),
+  set_prior("normal(0.14, 0.06)", class = "b", coef = "GenderMale"),
+  set_prior("normal(0, 0.03)", class = "b", coef = "ERT1")
+)
+
+# FEV1
+# Define and fit the Bayesian hierarchical model for FEV1
+model_fev1 <- brm(
+  FEV1 ~ Visit_c + Age_visit_c + Gender + ERT + (Visit_c | ID),
+  data = data,
+  family = gaussian(),
+  prior = priors,
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  cores = 2
+)
+
+# Summarise the model
+summary(model_fev1)
+
+# Plot the trace and posterior distributions
+plot(model_fev1)
+title("Trace and Posterior Distributions for FEV1")
+
+# Posterior predictive checks
+pp_check(model_fev1) + title("Posterior Predictive Checks for FEV1")
+
+trace_plot <- plot(model_fev1)
+trace_plot <- trace_plot + ggtitle("Trace and Posterior Distributions for FEV1")
+print(trace_plot)
+
+# Get detailed summary of the posterior distributions
+posterior_summary_fev1 <- summary(model_fev1)$fixed
+print(posterior_summary_fev1)
+
+pp_check_plot <- pp_check(model_fev1)
+pp_check_plot <- pp_check_plot + ggtitle("Posterior Predictive Checks for FEV1")
+print(pp_check_plot)
+
+#FVC
+# Define and fit the Bayesian hierarchical model for FVC
+model_fvc <- brm(
+  FVC ~ Visit_c + Age_visit_c + Gender + ERT + (Visit_c | ID),
+  data = data,
+  family = gaussian(),
+  prior = c(
+    set_prior("normal(1.4, 1.1)", class = "Intercept"),
+    set_prior("normal(0.025, 0.05)", class = "b", coef = "Visit_c"),
+    set_prior("normal(0.01, 0.05)", class = "b", coef = "Age_visit_c"),
+    set_prior("normal(0.20, 0.08)", class = "b", coef = "GenderMale"),
+    set_prior("normal(0, 0.04)", class = "b", coef = "ERT1")
+  ),
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  cores = 2
+)
+
+# Summarise the model
+summary(model_fvc)
+
+# Plot the trace and posterior distributions
+plot(model_fvc)
+
+# Posterior predictive checks
+pp_check(model_fvc)
+
+# Get detailed summary of the posterior distributions
+posterior_summary_fvc <- summary(model_fvc)$fixed
+print(posterior_summary_fvc)
+
+# Define and fit the Bayesian hierarchical model for 6MWT
+model_6mwt <- brm(
+  dist6MWT ~ Visit_c + Age_visit_c + Gender + ERT + (Visit_c | ID),
+  data = data,
+  family = gaussian(),
+  prior = c(
+    set_prior("normal(216.8, 172.7)", class = "Intercept"),
+    set_prior("normal(35, 50)", class = "b", coef = "Visit_c"),
+    set_prior("normal(-1.22, 0.50)", class = "b", coef = "Age_visit_c"),
+    set_prior("normal(4.05, 8.22)", class = "b", coef = "GenderMale"),
+    set_prior("normal(0, 5.48)", class = "b", coef = "ERT1")
+  ),
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  cores = 2
+)
+
+# Summarise the model
+summary(model_6mwt)
+
+# Plot the trace and posterior distributions
+plot(model_6mwt)
+
+# Posterior predictive checks
+pp_check(model_6mwt)
+
+# Get detailed summary of the posterior distributions
+posterior_summary_6mwt <- summary(model_6mwt)$fixed
+print(posterior_summary_6mwt)
+
+#uKS
+# Define and fit the Bayesian hierarchical model for uKS
+model_uks <- brm(
+  uKS ~ Visit_c + Age_visit_c + Gender + ERT + (Visit_c | ID),
+  data = data,
+  family = gaussian(),
+  prior = c(
+    set_prior("normal(62.8, 10)", class = "Intercept"),
+    set_prior("normal(-0.02, 0.01)", class = "b", coef = "Visit_c"),
+    set_prior("normal(-0.22, 0.03)", class = "b", coef = "Age_visit_c"),
+    set_prior("normal(0.08, 0.75)", class = "b", coef = "GenderMale"),
+    set_prior("normal(-0.93, 0.45)", class = "b", coef = "ERT1")
+  ),
+  iter = 2000,
+  warmup = 1000,
+  chains = 4,
+  cores = 2
+)
+
+# Summarise the model
+summary(model_uks)
+
+# Plot the trace and posterior distributions
+plot(model_uks)
+
+# Posterior predictive checks
+pp_check(model_uks)
+
+# Get detailed summary of the posterior distributions
+posterior_summary_uks <- summary(model_uks)$fixed
+print(posterior_summary_uks)
+
+
+
+
+##-------------------------------------------------------
+# relook at linear and non linear 
+
+
+# Load required libraries
+library(lme4)
+library(nlme)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(car)
+
+# Load the data
+data <- read.csv("knn_imputed_dataset2g.csv")
+
+# Load required libraries
+library(lme4)
+library(nlme)
+library(car)  # For VIF
+
+# Load the data
+data <- read.csv("knn_imputed_dataset2g.csv")
+
+# Convert 'ID', 'Gender', and 'ERT' to factors if they are not already
+data$ID <- as.factor(data$ID)
+data$Gender <- as.factor(data$Gender)
+data$ERT <- as.factor(data$ERT)
+
+# Check for collinearity
+linear_model <- lm(FEV1 ~ Visit + Age_visit + Gender + ERT, data = data)
+vif(linear_model)
+
+# Refine Linear Mixed-Effects Models
+lmer_fev1 <- lmer(FEV1 ~ Visit + Age_visit + Gender + ERT + (Visit | ID), data = data)
+lmer_fvc <- lmer(FVC ~ Visit + Age_visit + Gender + ERT + (Visit | ID), data = data)
+lmer_6mwt <- lmer(dist6MWT ~ Visit + Age_visit + Gender + ERT + (Visit | ID), data = data)
+lmer_uks <- lmer(uKS ~ Visit + Age_visit + Gender + ERT + (Visit | ID), data = data)
+
+# Print summaries of the linear mixed-effects models
+summary(lmer_fev1)
+summary(lmer_fvc)
+summary(lmer_6mwt)
+summary(lmer_uks)
+
+
+#Fit Polynomial Regression Models
+# Polynomial Regression as an alternative for non-linear relationships
+poly_fev1 <- lmer(FEV1 ~ poly(Visit, 2) + Age_visit + Gender + ERT + (Visit | ID), data = data)
+poly_fvc <- lmer(FVC ~ poly(Visit, 2) + Age_visit + Gender + ERT + (Visit | ID), data = data)
+poly_6mwt <- lmer(dist6MWT ~ poly(Visit, 2) + Age_visit + Gender + ERT + (Visit | ID), data = data)
+poly_uks <- lmer(uKS ~ poly(Visit, 2) + Age_visit + Gender + ERT + (Visit | ID), data = data)
+
+# Print summaries of the polynomial regression models
+summary(poly_fev1)
+summary(poly_fvc)
+summary(poly_6mwt)
+summary(poly_uks)
+
+# Non-Linear Mixed-Effects Models
+
+# Prepare data as groupedData
+grouped_data_fev1 <- groupedData(FEV1 ~ Visit | ID, data = data)
+grouped_data_fvc <- groupedData(FVC ~ Visit | ID, data = data)
+grouped_data_6mwt <- groupedData(dist6MWT ~ Visit | ID, data = data)
+grouped_data_uks <- groupedData(uKS ~ Visit | ID, data = data)
+
+# Fit Non-Linear Mixed-Effects Models
+nlme_fev1 <- nlme(FEV1 ~ SSlogis(Visit, Asym, xmid, scal), 
+                  fixed = Asym + xmid + scal ~ 1, 
+                  random = Asym ~ 1 | ID, 
+                  data = grouped_data_fev1)
+
+nlme_fvc <- nlme(FVC ~ SSlogis(Visit, Asym, xmid, scal), 
+                 fixed = Asym + xmid + scal ~ 1, 
+                 random = Asym ~ 1 | ID, 
+                 data = grouped_data_fvc)
+
+nlme_6mwt <- nlme(dist6MWT ~ SSlogis(Visit, Asym, xmid, scal), 
+                  fixed = Asym + xmid + scal ~ 1, 
+                  random = Asym ~ 1 | ID, 
+                  data = grouped_data_6mwt)
+
+nlme_uks <- nlme(uKS ~ SSlogis(Visit, Asym, xmid, scal), 
+                 fixed = Asym + xmid + scal ~ 1, 
+                 random = Asym ~ 1 | ID, 
+                 data = grouped_data_uks)
+
+# Print summaries of the non-linear mixed-effects models
+summary(nlme_fev1)
+summary(nlme_fvc)
+summary(nlme_6mwt)
+summary(nlme_uks)
+
+summary(is.na(data$ID))
+
+
+
+# further refine Linear mdoels
+
+# Load the data
+data <- read.csv("knn_imputed_dataset2g.csv")
+
+# Convert 'ID', 'Gender', and 'ERT' to factors if they are not already
+data$ID <- as.factor(data$ID)
+data$Gender <- as.factor(data$Gender)
+data$ERT <- as.factor(data$ERT)
+
+
+
+# Print summaries of the linear mixed-effects models
+summary(lmer_fev1)
+summary(lmer_fvc)
+summary(lmer_6mwt)
+summary(lmer_uks)
+
+  
+head(data)
+summary(data)
+str(data)
+
+
+# Convert factors to numeric
+data$Gender <- as.numeric(factor(data$Gender))
+data$ERT <- as.numeric(factor(data$ERT))
+
+# Fit the linear model
+linear_model <- lm(FEV1 ~ Age_visit + Gender + ERT, data = data)
+
+# Print the summary of the model
+summary(linear_model)
+
+# lme4 model
+library(lme4)
+
+# Fit the linear mixed effects model for FEV1
+linear_mixed_model <- lmer(FEV1 ~ Age_visit + Gender + ERT + (1|ID), data = data)
+
+# Print the summary of the model
+summary(linear_mixed_model)
+
+
+# Fit the linear mixed effects model for FVC
+linear_mixed_model_FVC <- lmer(FVC ~ Age_visit + Gender + ERT + (1|ID), data = data)
+summary(linear_mixed_model_FVC)
+
+# Fit the linear mixed effects model for dist6MWT
+linear_mixed_model_dist6MWT <- lmer(dist6MWT ~ Age_visit + Gender + ERT + (1|ID), data = data)
+summary(linear_mixed_model_dist6MWT)
+
+# Fit the linear mixed effects model for uKS
+linear_mixed_model_uKS <- lmer(uKS ~ Age_visit + Gender + ERT + (1|ID), data = data)
+summary(linear_mixed_model_uKS)
+
+
+# Non liena models 
+library(nlme)
+
+# Hypothetical non-linear model: FEV1 = a * Age_visit^2 + b * Gender + c * ERT
+# You need to provide starting values for 'a', 'b', and 'c'
+start.list <- list(a = 1, b = 0.5, c = 0.5)
+
+# Fit the non-linear mixed effects model
+nonlinear_mixed_model <- nlme(FEV1 ~ a * Age_visit^2 + b * Gender + c * ERT,
+                              data = data,
+                              fixed = a + b + c ~ 1,
+                              random = a ~ 1|ID,
+                              start = start.list)
+
+# Print the summary of the model
+summary(nonlinear_mixed_model)
+
+# Load the necessary library
+library(nlme)
+
+# Hypothetical non-linear model: y = a * Age_visit^2 + b * Gender + c * ERT
+# You need to provide starting values for 'a', 'b', and 'c'
+start.list <- list(fixed = list(a = 1, b = 0.5, c = 0.5))
+
+
+
+# Load the necessary library
+library(ggplot2)
+library(gridExtra)
+
+# Create scatter plots
+plot1 <- ggplot(data, aes(x = Age_visit, y = FEV1)) + geom_point() + ggtitle("FEV1 vs Age_visit")
+plot2 <- ggplot(data, aes(x = Gender, y = FEV1)) + geom_point() + ggtitle("FEV1 vs Gender")
+plot3 <- ggplot(data, aes(x = ERT, y = FEV1)) + geom_point() + ggtitle("FEV1 vs ERT")
+
+plot4 <- ggplot(data, aes(x = Age_visit, y = FVC)) + geom_point() + ggtitle("FVC vs Age_visit")
+plot5 <- ggplot(data, aes(x = Gender, y = FVC)) + geom_point() + ggtitle("FVC vs Gender")
+plot6 <- ggplot(data, aes(x = ERT, y = FVC)) + geom_point() + ggtitle("FVC vs ERT")
+
+plot7 <- ggplot(data, aes(x = Age_visit, y = dist6MWT)) + geom_point() + ggtitle("dist6MWT vs Age_visit")
+plot8 <- ggplot(data, aes(x = Gender, y = dist6MWT)) + geom_point() + ggtitle("dist6MWT vs Gender")
+plot9 <- ggplot(data, aes(x = ERT, y = dist6MWT)) + geom_point() + ggtitle("dist6MWT vs ERT")
+
+plot10 <- ggplot(data, aes(x = Age_visit, y = uKS)) + geom_point() + ggtitle("uKS vs Age_visit")
+plot11 <- ggplot(data, aes(x = Gender, y = uKS)) + geom_point() + ggtitle("uKS vs Gender")
+plot12 <- ggplot(data, aes(x = ERT, y = uKS)) + geom_point() + ggtitle("uKS vs ERT")
+
+# Arrange the plots into a grid
+grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, plot7, plot8, plot9, plot10, plot11, plot12, ncol = 3)
+
+
+# Create scatter plots - see trends 
+p1 <- ggplot(data, aes(x = Age_visit, y = FEV1)) + geom_point() + ggtitle("FEV1 vs Age_visit")
+p2 <- ggplot(data, aes(x = Age_visit, y = FVC)) + geom_point() + ggtitle("FVC vs Age_visit")
+p3 <- ggplot(data, aes(x = Age_visit, y = dist6MWT)) + geom_point() + ggtitle("dist6MWT vs Age_visit")
+p4 <- ggplot(data, aes(x = Age_visit, y = uKS)) + geom_point() + ggtitle("uKS vs Age_visit")
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+
+
+# Fit the non-linear mixed effects model for FEV1
+
+# Non-linear model: y = a * Age_visit + b * Age_visit^2 + c * Gender + d * ERT
+# You need to provide starting values for 'a', 'b', 'c', and 'd'
+start.list <- list(fixed = c(a = 1, b = 0.5, c = 0.5, d = 0.5))
+
+# Fit the non-linear mixed effects model for FEV1
+nonlinear_mixed_model_FEV1 <- nlme(FEV1 ~ a * Age_visit + b * Age_visit^2 + c * Gender + d * ERT,
+                                   data = data,
+                                   fixed = a + b + c + d ~ 1,
+                                   random = a ~ 1|ID,
+                                   start = start.list)
+summary(nonlinear_mixed_model_FEV1)
+
+# Fit the non-linear mixed effects model for FVC
+nonlinear_mixed_model_FVC <- nlme(FVC ~ a * Age_visit + b * Age_visit^2 + c * Gender + d * ERT,
+                                  data = data,
+                                  fixed = a + b + c + d ~ 1,
+                                  random = a ~ 1|ID,
+                                  start = start.list)
+summary(nonlinear_mixed_model_FVC)
+
+# Fit the non-linear mixed effects model for dist6MWT
+nonlinear_mixed_model_dist6MWT <- nlme(dist6MWT ~ a * Age_visit + b * Age_visit^2 + c * Gender + d * ERT,
+                                       data = data,
+                                       fixed = a + b + c + d ~ 1,
+                                       random = a ~ 1|ID,
+                                       start = start.list)
+summary(nonlinear_mixed_model_dist6MWT)
+
+# Fit the non-linear mixed effects model for uKS
+nonlinear_mixed_model_uKS <- nlme(uKS ~ a * Age_visit + b * Age_visit^2 + c * Gender + d * ERT,
+                                  data = data,
+                                  fixed = a + b + c + d ~ 1,
+                                  random = a ~ 1|ID,
+                                  start = start.list)
+summary(nonlinear_mixed_model_uKS)
+
+# Create a data frame for the non-linear fixed effects summary
+nonlinear_fixed_effects_summary <- data.frame(
+  Metric = rep(c("FEV1", "FVC", "6MWT", "uKS"), each = 4),
+  Effect = rep(c("a", "b", "c", "d"), 4),
+  Estimate = c(0.049, -0.00088, 0.231, 0.159, 
+               0.060, -0.00108, 0.291, 0.160, 
+               3.76, -0.059, 89.05, 68.39, 
+               -0.455, 0.0080, 7.213, 4.654),
+  StdError = c(0.0048, 0.00014, 0.0264, 0.0208, 
+               0.0060, 0.00017, 0.0328, 0.0259, 
+               1.08, 0.0312, 5.94, 4.67, 
+               0.0885, 0.0025, 0.4842, 0.3807),
+  Significance = rep(c("***", "***", "***", "***"), 4)
+)
+
+# Create the plot
+ggplot(nonlinear_fixed_effects_summary, aes(x = Effect, y = Estimate, fill = Metric)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
+  geom_errorbar(aes(ymin = Estimate - StdError, ymax = Estimate + StdError), 
+                width = 0.2, position = position_dodge(width = 0.8)) +
+  facet_wrap(~ Metric, scales = "free") +
+  labs(title = "Non-Linear Fixed Effects Estimates for FEV1, FVC, 6MWT, and uKS",
+       x = "Effect",
+       y = "Estimate") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  scale_fill_brewer(palette = "Set1") +
+  geom_text(aes(label = Significance), 
+            position = position_dodge(width = 0.8), 
+            vjust = -0.5)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
